@@ -541,6 +541,18 @@ class Handler(BaseHTTPRequestHandler):
         return self.err(404, "unknown api")
 
 
+def find_running():
+    """Port of a Blueprint already running on this computer (it answers /bpw.js), or None."""
+    from urllib.request import urlopen
+    for port in (8080, 8081, 8082, 8083):
+        try:
+            if b"__blueprint" in urlopen("http://127.0.0.1:%d/bpw.js" % port, timeout=0.6).read():
+                return port
+        except Exception:
+            pass
+    return None
+
+
 def main():
     ap = argparse.ArgumentParser(description="Blueprint wiki server")
     ap.add_argument("--port", type=int, default=None, help="default 8080 (tries 8081-8083 if it is busy)")
@@ -548,8 +560,16 @@ def main():
                     help="0.0.0.0 = reachable from other devices on your network, 127.0.0.1 = this computer only")
     ap.add_argument("--open", action="store_true", help="open the wiki in your browser")
     a = ap.parse_args()
-    setup()
     fixed = a.port or (int(os.environ["BLUEPRINT_PORT"]) if os.environ.get("BLUEPRINT_PORT") else None)
+    if not fixed:
+        running = find_running()
+        if running:
+            url = "http://localhost:%d" % running
+            print("Blueprint is already running at %s" % url)
+            if a.open:
+                webbrowser.open(url)
+            return
+    setup()
     srv = None
     for port in ([fixed] if fixed else [8080, 8081, 8082, 8083]):
         try:
